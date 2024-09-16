@@ -4,20 +4,22 @@ const cors = require("cors");
 const app = express();
 const bodyParser = require("body-parser");
 const dns = require("dns");
-const session = require("express-session");
-
+const { MongoClient, ServerApiVersion } = require("mongodb");
+const client = new MongoClient(process.env.MONGO_URI, {
+  serverApi: {
+    version: ServerApiVersion.v1,
+    strict: true,
+    deprecationErrors: true,
+  },
+});
+// Send a ping to confirm a successful connection
+const db = client.db("urlshortner");
+const coll_urls = db.collection("urls");
 // Basic Configuration
-const port = process.env.PORT || 4000;
+const port = process.env.PORT || 3000;
 
 // Configuración de express-session
-app.use(
-  session({
-    secret: "clave-secreta", // Usar una clave secreta para firmar las cookies de la sesión
-    resave: false, // No volver a guardar la sesión si no ha cambiado
-    saveUninitialized: true, // Guardar nuevas sesiones aunque no se hayan modificado
-    cookie: { secure: false }, // secure: true solo si usas HTTPS
-  }),
-);
+
 app.use(cors());
 app.use(bodyParser.urlencoded({ extended: false }));
 
@@ -32,28 +34,27 @@ app.get("/api/hello", function (req, res) {
   res.json({ greeting: "hello API" });
 });
 
-app.post("/api/shorturl", function (req, res) {
-  if (!req.session.urls) {
-    req.session.urls = [];
-  }
-  dns.lookup(new URL(req.body.url).hostname, (err, address) => {
+app.post("/api/shorturl", async function (req, res) {
+  dns.lookup(new URL(req.body.url).hostname, async (err, address) => {
     if (!address) {
       res.json({ error: "invalid url" });
     } else {
-      req.session.urls.push({
+      const urlCount = await coll_urls.countDocuments({});
+      const urlDoc = {
         original_url: req.body.url,
-        short_url: req.session.urls.length + 1,
-      });
-      res.json(
-        req.session.urls.find((url) => url.original_url === req.body.url),
-      );
+        short_url: urlCount + 1,
+      };
+
+      coll_urls.insertOne(urlDoc);
+
+      res.json(urlDoc);
     }
   });
 });
 
-app.get("/api/shorturl/:short_url", function (req, res) {
-  let short_url = req.params.short_url;
-  let urlFound = req.session.urls?.find((url) => url.short_url === +short_url);
+app.get("/api/shorturl/:short_url", async function (req, res) {
+  let short_url = parseInt(req.params.short_url);
+  let urlFound = await coll_urls.findOne({ short_url });
   console.info(urlFound);
   if (urlFound.original_url) {
     res.redirect(urlFound.original_url);
