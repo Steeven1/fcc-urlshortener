@@ -7,7 +7,7 @@ const dns = require("dns");
 const session = require("express-session");
 
 // Basic Configuration
-const port = process.env.PORT || 3000;
+const port = process.env.PORT || 4000;
 
 // Configuración de express-session
 app.use(
@@ -55,9 +55,9 @@ app.get("/api/shorturl/:short_url", function (req, res) {
   let short_url = req.params.short_url;
   let urlFound = req.session.urls?.find((url) => url.short_url === +short_url);
   console.info(urlFound);
-  res.json(urlFound);
   if (urlFound.original_url) {
     res.redirect(urlFound.original_url);
+    return;
   } else {
     res.json({ error: "No short URL found for the given input" });
   }
